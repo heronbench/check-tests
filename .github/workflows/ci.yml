@@ -1,0 +1,62 @@
+name: CI
+
+# check-tests checks itself: the same three required checks it recommends.
+#   test-policy  no skipped, faked, swallowed or hidden tests
+#   tests        every test passes, each in under 200 ms
+#   test-first   a change's new tests fail on main and the whole suite passes on the branch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: No skipped, faked or hidden tests
+        run: python check_tests.py scan .
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pytest
+      - name: Run every test
+        run: python -m pytest --junitxml=junit.xml
+      - name: Every test under 200 ms
+        run: python check_tests.py durations junit.xml
+
+  test-first:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pytest
+      - name: New tests fail on main, every test passes here
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CARD_TYPE: ${{ contains(github.event.pull_request.labels.*.name, 'type:refactor') && 'refactor' || 'feature' }}
+          MAINTAINER: ${{ contains(fromJSON(vars.MAINTAINERS || '[]'), github.event.pull_request.user.login) }}
+        run: |
+          maintainer=""
+          if [ "$MAINTAINER" = "true" ]; then maintainer="--maintainer"; fi
+          python check_tests.py test-first --base "origin/$BASE_REF" --card-type "$CARD_TYPE" $maintainer

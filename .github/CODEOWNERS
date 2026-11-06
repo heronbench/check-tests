@@ -1,0 +1,5 @@
+# The rules, the CI that applies them and the test configuration are reviewed by a maintainer.
+/check_tests.py      @peterfhernandez
+/.github/            @peterfhernandez
+/pyproject.toml      @peterfhernandez
+**/conftest.py       @peterfhernandez
